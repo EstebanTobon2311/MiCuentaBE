@@ -1,0 +1,97 @@
+package com.fabricaescuela.micuenta.application.usecase;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.fabricaescuela.micuenta.application.dto.response.DashboardSummaryResponse;
+import com.fabricaescuela.micuenta.application.dto.response.MovementResponse;
+import com.fabricaescuela.micuenta.application.exception.ResourceNotFoundException;
+import com.fabricaescuela.micuenta.domain.model.Movement;
+import com.fabricaescuela.micuenta.domain.model.MovementType;
+import com.fabricaescuela.micuenta.domain.model.User;
+import com.fabricaescuela.micuenta.domain.repository.MovementRepository;
+import com.fabricaescuela.micuenta.domain.repository.UserRepository;
+
+@Service
+public class GetMonthlyDashboardSummaryUseCase {
+
+    private final MovementRepository movementRepository;
+    private final UserRepository userRepository;
+
+    public GetMonthlyDashboardSummaryUseCase(
+            MovementRepository movementRepository,
+            UserRepository userRepository
+    ) {
+        this.movementRepository = movementRepository;
+        this.userRepository = userRepository;
+    }
+
+    @Transactional(readOnly = true)
+    public DashboardSummaryResponse execute(String authenticatedEmail) {
+        User user = userRepository.findByEmail(authenticatedEmail.trim().toLowerCase())
+                .orElseThrow(() -> new ResourceNotFoundException("Authenticated user not found"));
+
+        LocalDate today = LocalDate.now();
+        LocalDate startDate = today.withDayOfMonth(1);
+        LocalDate endDate = today.withDayOfMonth(today.lengthOfMonth());
+
+        List<Movement> monthlyMovements = movementRepository.findByUserIdAndDateBetween(
+                user.id(),
+                startDate,
+                endDate
+        );
+
+        BigDecimal monthlyIncome = sumByType(monthlyMovements, MovementType.INGRESO);
+        BigDecimal monthlyExpense = sumByType(monthlyMovements, MovementType.EGRESO);
+        BigDecimal monthlyNet = monthlyIncome.subtract(monthlyExpense);
+
+        BigDecimal totalIncome = safe(
+                movementRepository.sumAmountByUserIdAndType(user.id(), MovementType.INGRESO)
+        );
+        BigDecimal totalExpense = safe(
+                movementRepository.sumAmountByUserIdAndType(user.id(), MovementType.EGRESO)
+        );
+        BigDecimal currentBalance = totalIncome.subtract(totalExpense);
+
+        List<MovementResponse> movementResponses = monthlyMovements.stream()
+                .map(this::toResponse)
+                .toList();
+
+        String month = today.getYear() + "-" + String.format("%02d", today.getMonthValue());
+
+        return new DashboardSummaryResponse(
+                month,
+                monthlyIncome,
+                monthlyExpense,
+                monthlyNet,
+                currentBalance,
+                movementResponses
+        );
+    }
+
+    private BigDecimal sumByType(List<Movement> movements, MovementType type) {
+        return movements.stream()
+                .filter(movement -> movement.type() == type)
+                .map(Movement::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal safe(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private MovementResponse toResponse(Movement movement) {
+        return new MovementResponse(
+                movement.id(),
+                movement.amount(),
+                movement.date(),
+                movement.type(),
+                movement.category(),
+                movement.description()
+        );
+    }
+}
