@@ -77,4 +77,18 @@ public class MovementRepositoryAdapter implements MovementRepository {
     public void deleteById(Long id) {
         movementJpaRepository.deleteById(id);
     }
+
+    @Override
+    public List<Movement> findExpensesByUserIdAndMonthAndYear(
+            Long userId, int month, int year) {
+        return movementJpaRepository
+                .findExpensesByUserIdAndMonthAndYear(
+                        userId,
+                        MovementType.EGRESO,
+                        month,
+                        year)
+                .stream()
+                .map(movementMapper::toDomain)
+                .toList();
+    }
 }

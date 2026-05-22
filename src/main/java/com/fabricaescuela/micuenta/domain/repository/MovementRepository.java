@@ -16,6 +16,8 @@ public interface MovementRepository {
 
     List<Movement> findByUserIdAndDateBetween(Long userId, LocalDate startDate, LocalDate endDate);
 
+    List<Movement> findExpensesByUserIdAndMonthAndYear(Long userId, int month, int year);
+
     BigDecimal sumAmountByUserIdAndType(Long userId, MovementType type);
 
     Optional<Movement> findById(Long id);

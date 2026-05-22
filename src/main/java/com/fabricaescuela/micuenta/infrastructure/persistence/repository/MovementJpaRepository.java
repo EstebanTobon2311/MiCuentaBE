@@ -31,4 +31,17 @@ public interface MovementJpaRepository extends JpaRepository<MovementEntity, Lon
             @Param("userId") Long userId,
             @Param("type") MovementType type
     );
+
+    @Query("""
+            SELECT m FROM MovementEntity m
+            WHERE m.userId = :userId
+              AND m.type = :type
+              AND MONTH(m.date) = :month
+              AND YEAR(m.date) = :year
+            """)
+    List<MovementEntity> findExpensesByUserIdAndMonthAndYear(
+            @Param("userId") Long userId,
+            @Param("type") MovementType type,
+            @Param("month") int month,
+            @Param("year") int year);
 }
